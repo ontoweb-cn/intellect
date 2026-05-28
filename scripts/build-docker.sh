@@ -96,8 +96,15 @@ build_image() {
         build_args+=(--load)
     fi
 
-    # Build context: the root containing both repos
-    docker buildx build "${build_args[@]}" "${INTELLECT_ROOT}/.."
+    # Build context: per image
+    local context
+    case "$image" in
+        intellect-agent)  context="${AGENT_REPO}" ;;
+        intellect-webui)  context="${WEBUI_REPO}" ;;
+        intellect)        context="${INTELLECT_ROOT}/.." ;;
+        *)                context="${INTELLECT_ROOT}/.." ;;
+    esac
+    docker buildx build "${build_args[@]}" "$context"
 
     log_info "[OK] ${full_image}:${VERSION}"
 }

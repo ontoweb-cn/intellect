@@ -27,6 +27,7 @@ SKIP_LINUX=false
 SKIP_MACOS=false
 SKIP_GITEE=false
 SKIP_GITHUB=false
+SKIP_SYNC=false
 GITEE_TOKEN="${GITEE_TOKEN:-}"
 GITHUB_TOKEN="${GITHUB_TOKEN:-}"
 REGISTRY="${DOCKER_REGISTRY:-docker.io}"
@@ -48,6 +49,7 @@ while [[ $# -gt 0 ]]; do
         --skip-macos)    SKIP_MACOS=true; shift ;;
         --skip-gitee)    SKIP_GITEE=true; shift ;;
         --skip-github)   SKIP_GITHUB=true; shift ;;
+        --skip-sync)     SKIP_SYNC=true; shift ;;
         --gitee-token)   GITEE_TOKEN="$2"; shift 2 ;;
         --github-token)  GITHUB_TOKEN="$2"; shift 2 ;;
         --gitee-repo)    GITEE_REPO="$2"; shift 2 ;;
@@ -86,6 +88,44 @@ if ! git -C "${GIT_REPO}" rev-parse --git-dir &>/dev/null; then
         git -C "${GIT_REPO}" add -A
         git -C "${GIT_REPO}" commit -m "Initial commit" || true
     fi
+fi
+
+# ── Sync sub-repos ────────────────────────────────────────────────────────
+if ! $SKIP_SYNC; then
+    log_step "Syncing sub-repositories..."
+
+    sync_repo() {
+        local path="$1" label="$2"
+        if [[ ! -d "$path" ]]; then
+            log_warn "${label} not found at ${path}, skipping"
+            return
+        fi
+        if [[ -n "$VERSION" ]] && git -C "$path" rev-parse "${VERSION}" >/dev/null 2>&1; then
+            log_info "${label}: checking out ${VERSION}..."
+            if ! $DRY_RUN; then
+                git -C "$path" fetch --tags origin
+                git -C "$path" checkout "${VERSION}"
+            fi
+        else
+            log_info "${label}: pulling latest main..."
+            if ! $DRY_RUN; then
+                git -C "$path" fetch origin
+                git -C "$path" checkout main 2>/dev/null || git -C "$path" checkout master 2>/dev/null || true
+                git -C "$path" pull origin main 2>/dev/null || git -C "$path" pull origin master 2>/dev/null || true
+                git -C "$path" fetch --tags origin
+            fi
+        fi
+        log_info "  [OK] ${label}: $(git -C "$path" log --oneline -1)"
+    }
+
+    if $DRY_RUN; then
+        log_info "[dry-run] Would sync ${AGENT_REPO} and ${WEBUI_REPO}"
+    else
+        sync_repo "${AGENT_REPO}" "intellect-agent"
+        sync_repo "${WEBUI_REPO}" "intellect-webui"
+    fi
+else
+    log_info "Skipping sub-repo sync (--skip-sync)"
 fi
 
 # ── Git tag ────────────────────────────────────────────────────────────────
