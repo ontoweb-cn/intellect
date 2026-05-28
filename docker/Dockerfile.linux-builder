@@ -1,0 +1,41 @@
+# =============================================================================
+# Dockerfile.linux-builder — Linux native compilation container
+# =============================================================================
+# Pre-installs all build dependencies so Nuitka compilation is fast.
+# Source code is volume-mounted at build time.
+#
+# Build:
+#   docker build -f docker/Dockerfile.linux-builder -t intellect-linux-builder:amd64 .
+# =============================================================================
+FROM python:3.12-slim-bookworm
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    curl \
+    nodejs \
+    npm \
+    git \
+    ccache \
+    patchelf \
+    libffi-dev \
+    libssl-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN pip install --no-cache-dir uv nuitka cython pyyaml cryptography
+
+# Pre-install agent Python dependencies (cached layer)
+# These are installed at container build time so Nuitka runs don't re-download.
+# Source is volume-mounted, so we only cache the dependency resolution here.
+RUN mkdir -p /opt/deps/agent /opt/deps/webui
+COPY ../intellect-agent/pyproject.toml ../intellect-agent/uv.lock /opt/deps/agent/
+RUN cd /opt/deps/agent && touch README.md && uv sync --frozen --extra all || true
+
+COPY ../intellect-webui/requirements.txt /opt/deps/webui/
+RUN cd /opt/deps/webui && pip install --no-cache-dir -r requirements.txt || true
+
+# Install Nuitka system-wide
+RUN pip install --no-cache-dir nuitka
+
+WORKDIR /build
+
+ENTRYPOINT ["/bin/bash", "-c"]

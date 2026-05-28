@@ -1,0 +1,66 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: intellect-webui
+  namespace: intellect
+  labels:
+    app: intellect
+    component: webui
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: intellect
+      component: webui
+  template:
+    metadata:
+      labels:
+        app: intellect
+        component: webui
+    spec:
+      nodeSelector:
+        kubernetes.io/arch: amd64
+      containers:
+        - name: webui
+          image: docker.io/ontoweb/intellect-webui:v0.1.0-254-g7b847d54f
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 9119
+              protocol: TCP
+          env:
+            - name: INTELLECT_WEBUI_HOST
+              value: "0.0.0.0"
+            - name: INTELLECT_WEBUI_PORT
+              value: "9119"
+            - name: INTELLECT_WEBUI_STATIC_DIR
+              value: "webui"
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              cpu: 1
+              memory: 1Gi
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 9119
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 9119
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          volumeMounts:
+            - name: data
+              mountPath: /home/intellectwebui/.intellect
+            - name: workspace
+              mountPath: /workspace
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: intellect-agent-data
+        - name: workspace
+          emptyDir: {}

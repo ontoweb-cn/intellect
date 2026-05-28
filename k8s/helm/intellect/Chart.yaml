@@ -1,0 +1,13 @@
+apiVersion: v2
+name: intellect
+description: Intellect AI Agent — Helm chart for Kubernetes deployment
+type: application
+version: 0.1.0-254-g7b847d54f
+appVersion: "latest"
+keywords:
+  - ai
+  - agent
+  - llm
+  - chatbot
+maintainers:
+  - name: ontoweb

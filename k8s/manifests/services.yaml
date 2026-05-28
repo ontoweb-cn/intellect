@@ -1,0 +1,38 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: intellect-webui
+  namespace: intellect
+  labels:
+    app: intellect
+    component: webui
+spec:
+  type: ClusterIP
+  selector:
+    app: intellect
+    component: webui
+  ports:
+    - port: 9119
+      targetPort: 9119
+      protocol: TCP
+      name: http
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: intellect-agent
+  namespace: intellect
+  labels:
+    app: intellect
+    component: agent
+spec:
+  type: ClusterIP
+  clusterIP: None
+  selector:
+    app: intellect
+    component: agent
+  ports:
+    - port: 8080
+      targetPort: 8080
+      protocol: TCP
+      name: api

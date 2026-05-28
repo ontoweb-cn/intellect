@@ -1,0 +1,71 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: intellect-agent-data
+  namespace: intellect
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: intellect-agent
+  namespace: intellect
+  labels:
+    app: intellect
+    component: agent
+spec:
+  replicas: 1
+  serviceName: intellect-agent
+  selector:
+    matchLabels:
+      app: intellect
+      component: agent
+  template:
+    metadata:
+      labels:
+        app: intellect
+        component: agent
+    spec:
+      nodeSelector:
+        kubernetes.io/arch: amd64
+      hostNetwork: true
+      containers:
+        - name: agent
+          image: docker.io/ontoweb/intellect-agent:latest
+          imagePullPolicy: IfNotPresent
+          args: ["gateway", "run"]
+          env:
+            - name: INTELLECT_UID
+              value: "10000"
+            - name: INTELLECT_GID
+              value: "10000"
+          resources:
+            requests:
+              cpu: 500m
+              memory: 2Gi
+            limits:
+              cpu: 2
+              memory: 4Gi
+          volumeMounts:
+            - name: data
+              mountPath: /opt/data
+            - name: docker-sock
+              mountPath: /var/run/docker.sock
+      volumes:
+        - name: docker-sock
+          hostPath:
+            path: /var/run/docker.sock
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        resources:
+          requests:
+            storage: 10Gi

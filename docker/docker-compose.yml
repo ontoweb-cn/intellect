@@ -1,0 +1,42 @@
+# =============================================================================
+# docker-compose.yml — Unified Intellect deployment
+# =============================================================================
+# Usage:
+#   INTELLECT_UID=$(id -u) INTELLECT_GID=$(id -g) docker compose up -d
+#
+# Services:
+#   agent  — Intellect Agent (gateway, cron, CLI)
+#   webui  — Intellect WebUI (browser interface)
+# =============================================================================
+
+services:
+  agent:
+    image: ontoweb/intellect-agent:latest
+    container_name: intellect-agent
+    restart: unless-stopped
+    network_mode: host
+    volumes:
+      - ~/.intellect:/opt/data
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      - INTELLECT_UID=${INTELLECT_UID:-10000}
+      - INTELLECT_GID=${INTELLECT_GID:-10000}
+    command: ["gateway", "run"]
+
+  webui:
+    image: ontoweb/intellect-webui:latest
+    container_name: intellect-webui
+    restart: unless-stopped
+    ports:
+      - "${INTELLECT_WEBUI_PORT:-9119}:9119"
+    volumes:
+      - ~/.intellect:/home/intellectwebui/.intellect
+      - ${WORKSPACE:-~/workspace}:/workspace
+    environment:
+      - INTELLECT_WEBUI_HOST=0.0.0.0
+      - INTELLECT_WEBUI_PORT=9119
+      - INTELLECT_WEBUI_STATIC_DIR=webui
+      - WANTED_UID=${INTELLECT_UID:-1024}
+      - WANTED_GID=${INTELLECT_GID:-1024}
+    depends_on:
+      - agent

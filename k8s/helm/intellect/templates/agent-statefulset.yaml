@@ -1,0 +1,64 @@
+{{- if .Values.agent.enabled }}
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "intellect.fullname" . }}-agent
+  labels:
+    {{- include "intellect.labels" . | nindent 4 }}
+    app.kubernetes.io/component: agent
+spec:
+  replicas: {{ .Values.agent.replicas }}
+  serviceName: {{ include "intellect.fullname" . }}-agent
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ include "intellect.name" . }}
+      app.kubernetes.io/component: agent
+  template:
+    metadata:
+      labels:
+        {{- include "intellect.labels" . | nindent 8 }}
+        app.kubernetes.io/component: agent
+    spec:
+      {{- with .Values.agent.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- if .Values.serviceAccount.create }}
+      serviceAccountName: {{ .Values.serviceAccount.name }}
+      {{- end }}
+      hostNetwork: {{ .Values.agent.hostNetwork }}
+      containers:
+        - name: agent
+          image: {{ include "intellect.agentImage" . }}
+          imagePullPolicy: {{ .Values.imagePullPolicy }}
+          args:
+            {{- toYaml .Values.agent.args | nindent 12 }}
+          env:
+            {{- range $k, $v := .Values.agent.env }}
+            - name: {{ $k }}
+              value: {{ $v | quote }}
+            {{- end }}
+          resources:
+            {{- toYaml .Values.agent.resources | nindent 12 }}
+          volumeMounts:
+            - name: data
+              mountPath: /opt/data
+            - name: docker-sock
+              mountPath: /var/run/docker.sock
+      volumes:
+        - name: docker-sock
+          hostPath:
+            path: /var/run/docker.sock
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes:
+          - {{ .Values.agent.persistence.accessMode }}
+        resources:
+          requests:
+            storage: {{ .Values.agent.persistence.size }}
+        {{- if .Values.agent.persistence.storageClass }}
+        storageClassName: {{ .Values.agent.persistence.storageClass }}
+        {{- end }}
+{{- end }}

@@ -1,0 +1,40 @@
+{{- if .Values.webui.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "intellect.fullname" . }}-webui
+  labels:
+    {{- include "intellect.labels" . | nindent 4 }}
+    app.kubernetes.io/component: webui
+spec:
+  type: {{ .Values.webui.service.type }}
+  ports:
+    - port: {{ .Values.webui.service.port }}
+      targetPort: {{ .Values.webui.service.port }}
+      protocol: TCP
+      name: http
+  selector:
+    app.kubernetes.io/name: {{ include "intellect.name" . }}
+    app.kubernetes.io/component: webui
+{{- end }}
+---
+{{- if .Values.agent.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "intellect.fullname" . }}-agent
+  labels:
+    {{- include "intellect.labels" . | nindent 4 }}
+    app.kubernetes.io/component: agent
+spec:
+  type: ClusterIP
+  clusterIP: None
+  ports:
+    - port: 8080
+      targetPort: 8080
+      protocol: TCP
+      name: api
+  selector:
+    app.kubernetes.io/name: {{ include "intellect.name" . }}
+    app.kubernetes.io/component: agent
+{{- end }}

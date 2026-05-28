@@ -1,0 +1,72 @@
+# =============================================================================
+# Dockerfile.webui — Intellect WebUI container image
+# =============================================================================
+# Based on the existing intellect-webui/Dockerfile, with static→webui path.
+#
+# Build:
+#   docker build -f docker/Dockerfile.webui -t ontoweb/intellect-webui:latest ../intellect-webui
+# =============================================================================
+FROM python:3.12-slim
+
+LABEL maintainer="ontoweb"
+LABEL description="Intellect Web UI — browser interface for Intellect Agent"
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ca-certificates wget gnupg \
+    && rm -rf /var/lib/apt/lists/* \
+    && apt-get clean
+
+RUN apt-get update -y --fix-missing --no-install-recommends \
+    && apt-get install -y --no-install-recommends \
+    apt-utils locales ca-certificates curl rsync openssh-client git xz-utils \
+    && apt-get upgrade -y \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN localedef -i en_US -c -f UTF-8 -A /usr/share/locale/locale.alias en_US.UTF-8
+ENV LANG=en_US.utf8 LC_ALL=C
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PYTHONIOENCODING=utf-8
+
+WORKDIR /apptoo
+
+RUN groupadd -g 1024 intellectwebui \
+    && useradd -u 1024 -d /home/intellectwebui -g intellectwebui -G users -s /bin/bash -m intellectwebui \
+    && mkdir -p /app /uv_cache /workspace \
+    && chown -R intellectwebui:intellectwebui /home/intellectwebui /app /uv_cache /workspace \
+    && chmod 0755 /home/intellectwebui \
+    && chmod 1777 /app /uv_cache /workspace
+
+COPY --chmod=555 docker_init.bash /intellectwebui_init.bash
+
+RUN touch /.within_container
+
+RUN rm -rf /var/lib/apt/lists/* /etc/apt/apt.conf.d/01proxy \
+    && apt-get clean
+
+USER root
+
+RUN curl -LsSf https://astral.sh/uv/install.sh | env UV_INSTALL_DIR=/usr/local/bin sh
+
+COPY --chown=root:root . /apptoo
+
+# Frontend files at webui/ path
+ENV INTELLECT_WEBUI_STATIC_DIR=webui
+
+ARG INTELLECT_VERSION=unknown
+RUN echo "__version__ = '${INTELLECT_VERSION}'" > /apptoo/api/_version.py
+
+ENV INTELLECT_WEBUI_HOST=0.0.0.0
+ENV INTELLECT_WEBUI_PORT=9119
+
+EXPOSE 9119
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+  CMD curl -f http://localhost:9119/health || exit 1
+
+USER root
+CMD ["/intellectwebui_init.bash"]
