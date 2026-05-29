@@ -158,16 +158,16 @@ fi
 if ! $SKIP_DOCKER; then
     log_step "Building and pushing Docker images..."
 
-    docker_args="--arch amd64,arm64 --version ${DOCKER_TAG} --push"
+    docker_args=(--arch amd64,arm64 --version "${DOCKER_TAG}" --push)
     if [[ "$REGISTRY" != "docker.io" ]]; then
-        docker_args="$docker_args --registry $REGISTRY"
+        docker_args+=(--registry "$REGISTRY")
     fi
 
     if $DRY_RUN; then
-        log_info "[dry-run] Would run: ./scripts/build-docker.sh $docker_args"
+        log_info "[dry-run] Would run: ./scripts/build-docker.sh ${docker_args[*]}"
     else
         require_cmd docker
-        bash "${SCRIPT_DIR}/build-docker.sh" $docker_args
+        bash "${SCRIPT_DIR}/build-docker.sh" "${docker_args[@]}"
     fi
 
     log_info "[OK] Docker images pushed to ${REGISTRY}/${NAMESPACE}/"
@@ -302,14 +302,15 @@ if ! $SKIP_GITEE; then
             done
         else
             log_info "Creating release ${VERSION}..."
+            GITEE_PAYLOAD=$(jq -n \
+                --arg tag "$VERSION" \
+                --arg name "$VERSION" \
+                --arg body "$RELEASE_BODY" \
+                '{tag_name: $tag, name: $name, body: $body, prerelease: false}')
             RESPONSE=$(curl -sSf -X POST \
                 -H "Authorization: token ${GITEE_TOKEN}" \
                 -H "Content-Type: application/json" \
-                -d "$(jq -n \
-                    --arg tag "$VERSION" \
-                    --arg name "$VERSION" \
-                    --arg body "$RELEASE_BODY" \
-                    '{tag_name: $tag, name: $name, body: $body, prerelease: false}')" \
+                -d "$GITEE_PAYLOAD" \
                 "$GITEE_API")
 
             RELEASE_ID=$(echo "$RESPONSE" | grep -o '"id":[0-9]*' | head -1 | cut -d: -f2)
@@ -352,18 +353,22 @@ if ! $SKIP_GITHUB; then
         if gh release view "${VERSION}" "${GH_REPO_ARGS[@]}" &>/dev/null; then
             log_warn "GitHub Release ${VERSION} already exists, uploading artifacts..."
             if [[ ${#UPLOAD_ASSETS[@]} -gt 0 ]]; then
-                gh release upload "${VERSION}" "${UPLOAD_ASSETS[@]}" \
-                    "${GH_REPO_ARGS[@]}" --clobber
+                gh release upload "${VERSION}" \
+                    "${GH_REPO_ARGS[@]}" --clobber -- \
+                    "${UPLOAD_ASSETS[@]}"
             fi
         else
-            RELEASE_ARGS=(release create "${VERSION}" \
+            # gh release create uses --title (not --name). Pass assets after "--"
+            # so flag-like filenames cannot be misparsed as flags.
+            gh release create "${VERSION}" \
                 --title "${VERSION}" \
                 --notes-file "$NOTES_FILE" \
-                "${GH_REPO_ARGS[@]}")
+                "${GH_REPO_ARGS[@]}"
             if [[ ${#UPLOAD_ASSETS[@]} -gt 0 ]]; then
-                RELEASE_ARGS+=("${UPLOAD_ASSETS[@]}")
+                gh release upload "${VERSION}" \
+                    "${GH_REPO_ARGS[@]}" --clobber -- \
+                    "${UPLOAD_ASSETS[@]}"
             fi
-            gh "${RELEASE_ARGS[@]}"
         fi
         log_info "[OK] GitHub Release ${VERSION} published"
     fi
