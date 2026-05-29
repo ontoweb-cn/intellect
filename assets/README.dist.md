@@ -90,3 +90,5 @@ client rather than run interactively.
 ## Requirements
 
 - {{REQUIREMENTS}}
+
+{{PLATFORM_NOTES}}

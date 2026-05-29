@@ -230,7 +230,8 @@ build_for_arch() {
     sed -e "s/{{VERSION}}/${VERSION}/g" \
         -e "s/{{PLATFORM}}/Linux/g" \
         -e "s/{{ARCH}}/${docker_arch}/g" \
-        -e "s/{{REQUIREMENTS}}/Linux (glibc 2.28+). No Python installation required (binaries are self-contained)./g" \
+        -e "s/{{REQUIREMENTS}}/Linux or Windows WSL2 (glibc 2.31+; e.g. Ubuntu 20.04+, Debian 11+). No Python installation required (binaries are self-contained)./g" \
+        -e "s|{{PLATFORM_NOTES}}|> **Windows (WSL2):** this Linux build runs unchanged inside any WSL2 distro. After \`./ctl.sh start\`, open http://127.0.0.1:9119 in your Windows browser — WSL2 forwards localhost automatically. For good performance keep the extracted folder on the WSL filesystem (e.g. \`~/intellect\`), not under \`/mnt/c\`.|g" \
         "${INTELLECT_ROOT}/assets/README.dist.md" > "${dist_dir}/README.md"
 
     # ── Final gate: never package a distribution missing executables ──────

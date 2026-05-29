@@ -143,6 +143,7 @@ sed -e "s/{{VERSION}}/${VERSION}/g" \
     -e "s/{{PLATFORM}}/macOS/g" \
     -e "s/{{ARCH}}/${TARGET_ARCH}/g" \
     -e "s/{{REQUIREMENTS}}/macOS 12+ (Apple Silicon or Intel). No Python installation required (binaries are self-contained)./g" \
+    -e "s|{{PLATFORM_NOTES}}||g" \
     "${INTELLECT_ROOT}/assets/README.dist.md" > "${DIST_DIR}/README.md"
 
 log_info "  [OK] ctl.sh, env.sh, .env.example, README.md"

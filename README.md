@@ -132,6 +132,42 @@ helm install intellect ontoweb/intellect \
 kubectl apply -f k8s-manifests/
 ```
 
+### 5. Windows (WSL2)
+
+Windows is supported through **WSL2** (the Windows Subsystem for Linux v2),
+which runs a real Linux kernel — the Linux artifacts above run unchanged. WSL1
+is not supported. Pick either path:
+
+**Option A — Docker (recommended, simplest).** With Docker Desktop's WSL2
+backend enabled (or Docker Engine installed inside your WSL distro), use the
+exact Docker steps from section 3:
+
+```bash
+cd docker
+INTELLECT_UID=$(id -u) INTELLECT_GID=$(id -g) docker compose up -d
+# Open http://localhost:9119 in your Windows browser
+```
+
+**Option B — Linux native binaries (no Docker).** Inside a WSL2 distro
+(Ubuntu 20.04+/22.04/24.04 or Debian 11/12), use the `linux-amd64` tarball:
+
+```bash
+# Run these INSIDE the WSL2 shell. Keep files on the Linux filesystem
+# (e.g. ~/intellect), NOT under /mnt/c, for good performance.
+tar -xzf intellect-dist-linux-amd64-{version}.tar.gz
+cd intellect-dist-linux-amd64
+cp .env.example .env          # edit with your API keys
+source ./env.sh
+./ctl.sh start
+# Open http://localhost:9119 in your Windows browser
+```
+
+> WSL2 forwards `127.0.0.1` between Windows and the distro automatically, so the
+> default `INTELLECT_WEBUI_HOST=127.0.0.1` is reachable from your Windows browser
+> at `http://localhost:9119` with no extra configuration. On older WSL2 setups
+> without localhost forwarding, set `INTELLECT_WEBUI_HOST=0.0.0.0` and connect to
+> the distro's IP from `wsl hostname -I`.
+
 ## CLI Commands
 
 ```bash
