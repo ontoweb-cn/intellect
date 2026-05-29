@@ -3,10 +3,49 @@
 # =============================================================================
 # Based on the existing intellect-webui/Dockerfile, with static→webui path.
 #
-# Build:
-#   docker build -f docker/Dockerfile.webui -t ontoweb/intellect-webui:latest ../intellect-webui
+# This image is self-contained: the Python runtime venv (intellect-webui
+# requirements + intellect-agent[all] + hindsight-client) is pre-built at image
+# build time into /app/venv, so the container needs no network and no agent
+# source mount on first boot. docker_init.bash detects /app/venv plus the
+# /app/venv/.deps_installed marker and skips its runtime install.
+#
+# The agent source is supplied via a named build context, so this image MUST be
+# built with buildx and the extra context (scripts/build-docker.sh does this):
+#   docker buildx build -f docker/Dockerfile.webui \
+#     --build-context intellect-agent=../intellect-agent \
+#     -t ontoweb/intellect-webui:latest ../intellect-webui
 # =============================================================================
-FROM python:3.12-slim
+
+# ---------- Stage: pre-build the self-contained runtime venv ----------
+# Builds /app/venv with all Python deps. Build-only tooling (gcc, headers) lives
+# here and is discarded — only the finished venv is copied into the final image.
+FROM python:3.12-slim AS venv_builder
+
+ENV DEBIAN_FRONTEND=noninteractive
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+       build-essential curl ca-certificates gcc python3-dev libffi-dev git \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN curl -LsSf https://astral.sh/uv/install.sh | env UV_INSTALL_DIR=/usr/local/bin sh
+
+# intellect-webui's own (tiny) requirements.
+COPY requirements.txt /tmp/requirements.txt
+
+# intellect-agent source comes from the named build context; pip builds a wheel
+# from it, so a README must exist (it is excluded by the agent .dockerignore).
+COPY --from=intellect-agent . /opt/intellect-agent-src
+
+RUN touch /opt/intellect-agent-src/README.md \
+    && uv venv /app/venv \
+    && uv pip install --python /app/venv/bin/python --no-cache -r /tmp/requirements.txt \
+    && uv pip install --python /app/venv/bin/python --no-cache -U pip setuptools \
+    && uv pip install --python /app/venv/bin/python --no-cache "/opt/intellect-agent-src[all]" \
+    && uv pip install --python /app/venv/bin/python --no-cache "hindsight-client>=0.4.22" \
+    && touch /app/venv/.deps_installed
+
+# ---------- Stage: runtime image ----------
+FROM python:3.12-slim AS runtime
 
 LABEL maintainer="ontoweb"
 LABEL description="Intellect Web UI — browser interface for Intellect Agent"
@@ -65,6 +104,15 @@ ENV INTELLECT_WEBUI_STATIC_DIR=webui
 
 ARG INTELLECT_VERSION=unknown
 RUN echo "__version__ = '${INTELLECT_VERSION}'" > /apptoo/api/_version.py
+
+# ---------- Self-contained runtime venv (pre-built in venv_builder) ----------
+# docker_init.bash reuses /app/venv when /app/venv/bin/python3 exists and skips
+# dependency installation when /app/venv/.deps_installed is present. The runtime
+# rsync (/apptoo/ -> /app/) runs without --delete, so this pre-seeded venv
+# survives. Make it world-readable so it still works after the runtime user is
+# remapped to an arbitrary UID via WANTED_UID.
+COPY --from=venv_builder /app/venv /app/venv
+RUN chown -R 1024:1024 /app/venv && chmod -R a+rX /app/venv
 
 ENV INTELLECT_WEBUI_HOST=0.0.0.0
 ENV INTELLECT_WEBUI_PORT=9119

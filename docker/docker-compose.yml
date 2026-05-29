@@ -7,6 +7,21 @@
 # Services:
 #   agent  — Intellect Agent (gateway, cron, CLI)
 #   webui  — Intellect WebUI (browser interface)
+#
+# The `agent` service runs the gateway daemon (`gateway run`) and needs no TTY.
+# To use the interactive CLI against the running container:
+#   docker exec -it intellect-agent intellect chat            # interactive
+#   docker exec    intellect-agent intellect chat -q "hello"  # one-shot, no TTY
+#
+# Benign startup warnings:
+#   "Warning: Input is not a terminal (fd=0)." — CLI started without -it; add
+#       -it for interactive use, or use `chat -q "..."` for non-interactive.
+#   "tirith security scanner enabled but not available …" — optional command
+#       scanner not downloaded (no network to github.com); command security
+#       falls back to pattern matching. Disable it by adding to
+#       ~/.intellect/config.yaml:
+#           security:
+#             tirith_enabled: false
 # =============================================================================
 
 services:

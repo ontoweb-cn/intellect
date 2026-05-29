@@ -104,6 +104,13 @@ build_image() {
         intellect)        context="${INTELLECT_ROOT}/.." ;;
         *)                context="${INTELLECT_ROOT}/.." ;;
     esac
+
+    # The webui image pre-builds its runtime venv (including intellect-agent[all])
+    # at image-build time, so it needs the agent source as a named build context.
+    if [[ "$image" == "intellect-webui" ]]; then
+        build_args+=(--build-context "intellect-agent=${AGENT_REPO}")
+    fi
+
     docker buildx build "${build_args[@]}" "$context"
 
     log_info "[OK] ${full_image}:${VERSION}"

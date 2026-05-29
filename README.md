@@ -77,6 +77,48 @@ INTELLECT_UID=$(id -u) INTELLECT_GID=$(id -g) docker compose up -d
 > locally first: `make docker-amd64` (or `make docker-arm64`). Use
 > `./scripts/build-docker.sh --arch amd64 --version <ver>` without `--push` to
 > build into the local Docker daemon only.
+>
+> The **webui image is self-contained**: its Python runtime venv (including
+> `intellect-agent[all]`) is installed at image-build time, so containers start
+> with no first-boot network access and no agent-source mount. Because the build
+> pulls in the agent source as a named build context, the webui image must be
+> built via `scripts/build-docker.sh` (buildx) — a bare
+> `docker build ../intellect-webui` will not resolve the `intellect-agent`
+> context. The build expects the agent checkout at `../intellect-agent`.
+
+#### Using the agent CLI
+
+The compose `agent` service runs the **gateway daemon** (`gateway run`); it does
+not need a terminal. To use the interactive CLI, attach to the running
+container with a TTY, or run a one-shot prompt:
+
+```bash
+# Interactive chat against the running compose container (TTY required)
+docker exec -it intellect-agent intellect chat
+
+# One-shot, non-interactive prompt (no TTY needed — good for scripts/CI)
+docker exec intellect-agent intellect chat -q "Summarize today's news"
+
+# Run the image directly as an interactive CLI (note the -it)
+docker run -it --rm -v ~/.intellect:/opt/data ontoweb/intellect-agent
+```
+
+> **`Warning: Input is not a terminal (fd=0).`** — harmless. It only means the
+> interactive CLI was started without a TTY. Add `-it` for interactive use, or
+> use `chat -q "..."` for non-interactive runs. The `gateway run` daemon does
+> not need a TTY and can ignore this.
+
+> **`tirith security scanner enabled but not available …`** — harmless. `tirith`
+> is an optional pre-exec command scanner, downloaded on first run from GitHub
+> releases to `/opt/data/bin/tirith`. If the container has no network to
+> github.com (or the download has not finished), command security falls back to
+> built-in pattern matching. To silence it, either allow outbound network so it
+> can download, or disable it in `~/.intellect/config.yaml`:
+>
+> ```yaml
+> security:
+>   tirith_enabled: false
+> ```
 
 ### 4. Kubernetes
 
