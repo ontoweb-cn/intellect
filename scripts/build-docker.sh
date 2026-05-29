@@ -100,15 +100,20 @@ build_image() {
     local context
     case "$image" in
         intellect-agent)  context="${AGENT_REPO}" ;;
-        intellect-webui)  context="${WEBUI_REPO}" ;;
+        intellect-webui)  context="${INTELLECT_ROOT}" ;;
         intellect)        context="${INTELLECT_ROOT}/.." ;;
         *)                context="${INTELLECT_ROOT}/.." ;;
     esac
 
-    # The webui image pre-builds its runtime venv (including intellect-agent[all])
-    # at image-build time, so it needs the agent source as a named build context.
+    # The webui image pre-builds its runtime binary (including intellect-agent[all])
+    # at image-build time. It needs agent + webui sources as named build contexts.
+    if [[ "$image" == "intellect-agent" ]]; then
+        build_args+=(--build-context "intellect-orchestrator=${INTELLECT_ROOT}")
+    fi
+
     if [[ "$image" == "intellect-webui" ]]; then
         build_args+=(--build-context "intellect-agent=${AGENT_REPO}")
+        build_args+=(--build-context "intellect-webui=${WEBUI_REPO}")
         build_args+=(--build-arg "INTELLECT_VERSION=${VERSION}")
     fi
 

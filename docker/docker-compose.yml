@@ -48,7 +48,7 @@ services:
       - ~/.intellect:/home/intellectwebui/.intellect
       - ${WORKSPACE:-~/workspace}:/workspace
       # Optional: agent source for git self-update / git-describe version badge.
-      # Not required with self-contained webui images (venv includes agent[all]).
+      # Not required with binary webui images (agent[all] is compiled into the server binary).
       # Uncomment both lines and set AGENT_SOURCE to your intellect-agent checkout:
       # - ${AGENT_SOURCE:-../intellect-agent}:/home/intellectwebui/.intellect/intellect-agent:ro
     environment:

@@ -1,122 +1,105 @@
 # =============================================================================
-# Dockerfile.webui — Intellect WebUI container image
+# Dockerfile.webui — Intellect WebUI container image (binary + static only)
 # =============================================================================
-# Based on the existing intellect-webui/Dockerfile, with static→webui path.
+# Runtime image contains ONLY:
+#   /apptoo/static/          — frontend assets
+#   /apptoo/bin/intellect-webui — Nuitka onefile server (includes Python deps +
+#                                 intellect-agent[all] from the build stage)
 #
-# This image is self-contained: the Python runtime venv (intellect-webui
-# requirements + intellect-agent[all] + hindsight-client) is pre-built at image
-# build time into /app/venv, so the container needs no network and no agent
-# source mount on first boot. docker_init.bash detects /app/venv plus the
-# /app/venv/.deps_installed marker and skips its runtime install.
-#
-# The agent source is supplied via a named build context, so this image MUST be
-# built with buildx and the extra context (scripts/build-docker.sh does this):
+# Build (scripts/build-docker.sh passes the agent build context automatically):
 #   docker buildx build -f docker/Dockerfile.webui \
 #     --build-context intellect-agent=../intellect-agent \
+#     --build-arg INTELLECT_VERSION=v1.0.0 \
 #     -t ontoweb/intellect-webui:latest ../intellect-webui
 # =============================================================================
 
-# ---------- Stage: pre-build the self-contained runtime venv ----------
-# Builds /app/venv with all Python deps. Build-only tooling (gcc, headers) lives
-# here and is discarded — only the finished venv is copied into the final image.
-FROM python:3.12-slim AS venv_builder
+# ---------- Stage: compile the self-contained server binary ----------
+FROM python:3.12-slim AS binary_builder
 
 ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
-       build-essential curl ca-certificates gcc python3-dev libffi-dev git \
+       build-essential curl ca-certificates gcc g++ python3-dev libffi-dev git patchelf ccache \
     && rm -rf /var/lib/apt/lists/*
 
 RUN curl -LsSf https://astral.sh/uv/install.sh | env UV_INSTALL_DIR=/usr/local/bin sh
 
-# intellect-webui's own (tiny) requirements.
-COPY requirements.txt /tmp/requirements.txt
+WORKDIR /build/webui
 
-# intellect-agent source comes from the named build context; pip builds a wheel
-# from it, so a README must exist (it is excluded by the agent .dockerignore).
+COPY --from=intellect-webui requirements.txt server.py bootstrap.py mcp_server.py ./
+COPY --from=intellect-webui api/ ./api/
 COPY --from=intellect-agent . /opt/intellect-agent-src
 
-RUN touch /opt/intellect-agent-src/README.md \
-    && uv venv /app/venv \
-    && uv pip install --python /app/venv/bin/python --no-cache -r /tmp/requirements.txt \
-    && uv pip install --python /app/venv/bin/python --no-cache -U pip setuptools \
-    && uv pip install --python /app/venv/bin/python --no-cache "/opt/intellect-agent-src[all]" \
-    && uv pip install --python /app/venv/bin/python --no-cache "hindsight-client>=0.4.22" \
-    && /app/venv/bin/python -c "import agent; import agent.skill_utils; import intellect_cli" \
-    && touch /app/venv/.deps_installed
+ARG INTELLECT_VERSION=unknown
+ARG NUITKA_LTO=yes
+RUN mkdir -p api \
+    && echo "__version__ = '${INTELLECT_VERSION}'" > api/_version.py
 
-# ---------- Stage: runtime image ----------
+RUN touch /opt/intellect-agent-src/README.md \
+    && uv venv /build/venv \
+    && uv pip install --python /build/venv/bin/python --no-cache \
+         -r requirements.txt \
+         'nuitka==2.8.10' cython ordered-set pyyaml cryptography \
+    && uv pip install --python /build/venv/bin/python --no-cache \
+         "/opt/intellect-agent-src[all]" \
+         "hindsight-client>=0.4.22" \
+    && /build/venv/bin/python -c "import agent; import yaml; import intellect_cli"
+
+RUN /build/venv/bin/python -m nuitka \
+    --onefile \
+    --output-dir=/out \
+    --output-filename=intellect-webui \
+    --lto=${NUITKA_LTO} \
+    --jobs="$(nproc)" \
+    --python-flag=-OO \
+    --noinclude-setuptools-mode=nofollow \
+    --enable-plugin=anti-bloat \
+    --assume-yes-for-downloads \
+    /build/webui/server.py
+
+RUN test -x /out/intellect-webui
+
+# ---------- Stage: runtime (static + binary only) ----------
 FROM python:3.12-slim AS runtime
 
 LABEL maintainer="ontoweb"
-LABEL description="Intellect Web UI — browser interface for Intellect Agent"
+LABEL description="Intellect Web UI — browser interface (binary + static only)"
 
 ENV DEBIAN_FRONTEND=noninteractive
 
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends ca-certificates wget gnupg \
-    && rm -rf /var/lib/apt/lists/* \
-    && apt-get clean
-
-RUN apt-get update -y --fix-missing --no-install-recommends \
     && apt-get install -y --no-install-recommends \
-    apt-utils locales ca-certificates curl rsync openssh-client git xz-utils \
-    && apt-get upgrade -y \
-    && apt-get clean \
-    && rm -rf /var/lib/apt/lists/*
+       ca-certificates curl rsync locales \
+    && rm -rf /var/lib/apt/lists/* \
+    && localedef -i en_US -c -f UTF-8 -A /usr/share/locale/locale.alias en_US.UTF-8
 
-RUN localedef -i en_US -c -f UTF-8 -A /usr/share/locale/locale.alias en_US.UTF-8
-ENV LANG=en_US.utf8 LC_ALL=C
-
-ENV PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1 \
-    PYTHONIOENCODING=utf-8
+ENV LANG=en_US.utf8 LC_ALL=C \
+    PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
 
 WORKDIR /apptoo
 
 RUN groupadd -g 1024 intellectwebui \
     && useradd -u 1024 -d /home/intellectwebui -g intellectwebui -G users -s /bin/bash -m intellectwebui \
-    && mkdir -p /app /uv_cache /workspace \
-    && chown -R intellectwebui:intellectwebui /home/intellectwebui /app /uv_cache /workspace \
-    && chmod 0755 /home/intellectwebui \
-    && chmod 1777 /app /uv_cache /workspace
+    && mkdir -p /app /home/intellectwebui/.intellect/webui \
+    && chown -R intellectwebui:intellectwebui /home/intellectwebui /app \
+    && chmod 0755 /home/intellectwebui
 
-COPY --chmod=555 docker_init.bash /intellectwebui_init.bash
-
+COPY --chmod=555 docker/webui-entrypoint.bash /intellectwebui_init.bash
 RUN touch /.within_container
 
-RUN rm -rf /var/lib/apt/lists/* /etc/apt/apt.conf.d/01proxy \
-    && apt-get clean
+# Only frontend static assets enter the runtime layer.
+COPY --from=intellect-webui static/ /apptoo/static/
+COPY --from=binary_builder /out/intellect-webui /apptoo/bin/intellect-webui
+RUN chmod 755 /apptoo/bin/intellect-webui \
+    && chown -R root:root /apptoo
 
-USER root
-
-RUN curl -LsSf https://astral.sh/uv/install.sh | env UV_INSTALL_DIR=/usr/local/bin sh
-
-COPY --chown=root:root . /apptoo
-
-# Frontend files live under static/ and index.html references them with relative
-# "static/..." URLs (→ browser requests /static/...). The server only serves paths
-# under /{INTELLECT_WEBUI_STATIC_DIR}/, so this MUST be "static", not "webui".
-ENV INTELLECT_WEBUI_STATIC_DIR=static
-
-ARG INTELLECT_VERSION=unknown
-RUN echo "__version__ = '${INTELLECT_VERSION}'" > /apptoo/api/_version.py
-
-# ---------- Self-contained runtime venv (pre-built in venv_builder) ----------
-# docker_init.bash reuses /app/venv when /app/venv/bin/python3 exists and skips
-# dependency installation when /app/venv/.deps_installed is present. The runtime
-# rsync (/apptoo/ -> /app/) runs without --delete, so this pre-seeded venv
-# survives. Make it world-readable so it still works after the runtime user is
-# remapped to an arbitrary UID via WANTED_UID.
-COPY --from=venv_builder /app/venv /app/venv
-RUN chown -R 1024:1024 /app/venv && chmod -R a+rX /app/venv
-
+ENV INTELLECT_WEBUI_STATIC_DIR=/app/static
 ENV INTELLECT_WEBUI_HOST=0.0.0.0
 ENV INTELLECT_WEBUI_PORT=9119
 
 EXPOSE 9119
 
-HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
   CMD curl -f http://localhost:9119/health || exit 1
 
 USER root
