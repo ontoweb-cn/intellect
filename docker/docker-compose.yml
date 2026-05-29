@@ -47,6 +47,10 @@ services:
     volumes:
       - ~/.intellect:/home/intellectwebui/.intellect
       - ${WORKSPACE:-~/workspace}:/workspace
+      # Optional: agent source for git self-update / git-describe version badge.
+      # Not required with self-contained webui images (venv includes agent[all]).
+      # Uncomment both lines and set AGENT_SOURCE to your intellect-agent checkout:
+      # - ${AGENT_SOURCE:-../intellect-agent}:/home/intellectwebui/.intellect/intellect-agent:ro
     environment:
       - INTELLECT_WEBUI_HOST=0.0.0.0
       - INTELLECT_WEBUI_PORT=9119
@@ -55,6 +59,8 @@ services:
       # Required by docker_init.bash (line 305): must be set explicitly — no default.
       # Maps to ~/.intellect/webui on the host via the .intellect volume mount below.
       - INTELLECT_WEBUI_STATE_DIR=/home/intellectwebui/.intellect/webui
+      # Optional with agent source mount above (uncomment together):
+      # - INTELLECT_WEBUI_AGENT_DIR=/home/intellectwebui/.intellect/intellect-agent
       - WANTED_UID=${INTELLECT_UID:-1024}
       - WANTED_GID=${INTELLECT_GID:-1024}
     depends_on:

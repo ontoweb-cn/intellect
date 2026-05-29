@@ -129,6 +129,32 @@ docker logs intellect-watchtower
 See `k8s/keel/README.md`: Keel polls the registry and requires a manual
 **approval** before rolling out — the cluster-native "confirm".
 
+## Release version alignment
+
+Before `./scripts/release.sh`, keep intellect-agent version fields coherent:
+
+| Source | Location | Used for |
+|--------|----------|----------|
+| CLI runtime | `intellect-agent/intellect_cli/__init__.py` → `__version__` | `intellect version`, banner |
+| pip/venv | `intellect-agent/pyproject.toml` → `version` | Docker venv `pip install`, PyPI |
+| Release tag | `git tag vX.Y.Z` on agent repo | `get_version()` / Docker tags / `update.json` |
+| WebUI badge (pip) | `importlib.metadata.version("intellect-agent")` | Settings when no agent source mount |
+| WebUI badge (git) | agent checkout `VERSION` or `git describe` | When agent source is mounted |
+
+**Pre-release check** (also run automatically by `release.sh` after sub-repo sync):
+
+```bash
+./scripts/assert-agent-version.sh              # __init__.py == pyproject.toml
+./scripts/assert-agent-version.sh --expected v1.2.3   # also match exact release tag
+```
+
+Bump agent versions with `intellect-agent/scripts/release.py`, then tag and run
+`release.sh --version vX.Y.Z`.
+
+**Optional compose mount** for git-based agent self-update (not required for
+self-contained webui images): see commented lines in `docker/docker-compose.yml`
+(`AGENT_SOURCE` → `~/.intellect/intellect-agent`).
+
 ## Roadmap (later phases)
 
 - **Native binaries (macOS/Linux/WSL2):** extend `intellect update` to, for the

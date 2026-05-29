@@ -128,6 +128,16 @@ else
     log_info "Skipping sub-repo sync (--skip-sync)"
 fi
 
+# ── Agent version coherence (see docs/auto-update.md) ─────────────────────
+if [[ -d "${AGENT_REPO}" ]]; then
+    log_step "Checking intellect-agent version coherence..."
+    if $DRY_RUN; then
+        log_info "[dry-run] Would run: ./scripts/assert-agent-version.sh --expected ${VERSION}"
+    else
+        bash "${SCRIPT_DIR}/assert-agent-version.sh" --expected "${VERSION}"
+    fi
+fi
+
 # ── Git tag ────────────────────────────────────────────────────────────────
 log_step "Checking git tag ${VERSION} (repo: ${GIT_REPO})..."
 if git -C "${GIT_REPO}" rev-parse "${VERSION}" >/dev/null 2>&1; then
