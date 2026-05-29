@@ -51,6 +51,9 @@ services:
       - INTELLECT_WEBUI_HOST=0.0.0.0
       - INTELLECT_WEBUI_PORT=9119
       - INTELLECT_WEBUI_STATIC_DIR=webui
+      # Required by docker_init.bash (line 305): must be set explicitly — no default.
+      # Maps to ~/.intellect/webui on the host via the .intellect volume mount below.
+      - INTELLECT_WEBUI_STATE_DIR=/home/intellectwebui/.intellect/webui
       - WANTED_UID=${INTELLECT_UID:-1024}
       - WANTED_GID=${INTELLECT_GID:-1024}
     depends_on:
