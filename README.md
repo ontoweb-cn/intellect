@@ -204,6 +204,29 @@ source ./env.sh
 ./ctl.sh logs        # View logs (tail -f)
 ```
 
+## Updating
+
+Updates follow a **notify + confirm** policy — you are told when a newer version
+is available, and you apply it explicitly. Each release publishes a signed
+manifest (`update.json` + `update.json.minisig`, minisign) to the Gitee/GitHub
+release.
+
+For **containers**, opt into a notify-only watcher and apply updates yourself:
+
+```bash
+# Docker Compose — Diun (notify only)
+docker compose -f docker-compose.yml -f docker-compose.diun.yml up -d
+# When notified, confirm the upgrade:
+docker compose pull && docker compose up -d
+```
+
+- Docker: `docker/docker-compose.diun.yml` (or `docker-compose.watchtower.yml` for Watchtower monitor-only)
+- Kubernetes: `k8s/keel/README.md` (Keel with manual approval)
+- Full design, manifest schema, and signing-key management: [`docs/auto-update.md`](docs/auto-update.md)
+
+> Native-binary (macOS/Linux/WSL2) self-update is a later phase and will consume
+> the same signed manifest.
+
 ## Configuration
 
 Copy `.env.example` to `.env` and configure:

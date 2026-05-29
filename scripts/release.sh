@@ -213,6 +213,32 @@ elif ! $SKIP_NATIVE && $SKIP_MACOS; then
     log_info "Skipping native macOS binaries (--skip-macos)"
 fi
 
+# ═══════════════════════════════════════════════════════════════════════════
+# Auto-update manifest (signed) — see docs/auto-update.md
+# ═══════════════════════════════════════════════════════════════════════════
+log_step "Generating signed auto-update manifest..."
+manifest_args=(
+    --version "${VERSION}"
+    --registry "${REGISTRY}"
+    --namespace "${NAMESPACE}"
+    --gitee-repo "${GITEE_REPO}"
+    --github-repo "${GITHUB_REPO}"
+)
+if $DRY_RUN; then
+    log_info "[dry-run] Would run: ./scripts/gen-manifest.sh ${manifest_args[*]}"
+else
+    bash "${SCRIPT_DIR}/gen-manifest.sh" "${manifest_args[@]}"
+fi
+
+MANIFEST_FILES=()
+[[ -f "${DIST_DIR}/update.json" ]]         && MANIFEST_FILES+=("${DIST_DIR}/update.json")
+[[ -f "${DIST_DIR}/update.json.minisig" ]] && MANIFEST_FILES+=("${DIST_DIR}/update.json.minisig")
+
+# Everything uploaded as a release asset: native tarballs + the signed manifest.
+UPLOAD_ASSETS=()
+[[ ${#NATIVE_ARTIFACTS[@]} -gt 0 ]] && UPLOAD_ASSETS+=("${NATIVE_ARTIFACTS[@]}")
+[[ ${#MANIFEST_FILES[@]}   -gt 0 ]] && UPLOAD_ASSETS+=("${MANIFEST_FILES[@]}")
+
 # ── Build release body (shared across Gitee + GitHub) ─────────────────────
 build_release_body() {
     local body
@@ -256,7 +282,7 @@ if ! $SKIP_GITEE; then
 
         if [[ -n "$EXISTING_ID" ]]; then
             log_warn "Gitee Release ${VERSION} already exists (id=${EXISTING_ID}), uploading artifacts..."
-            for artifact in "${NATIVE_ARTIFACTS[@]}"; do
+            for artifact in "${UPLOAD_ASSETS[@]}"; do
                 log_info "  Uploading $(basename "$artifact")..."
                 curl -sSf -X POST \
                     -H "Authorization: token ${GITEE_TOKEN}" \
@@ -279,7 +305,7 @@ if ! $SKIP_GITEE; then
             RELEASE_ID=$(echo "$RESPONSE" | grep -o '"id":[0-9]*' | head -1 | cut -d: -f2)
             log_info "[OK] Release created (id=${RELEASE_ID})"
 
-            for artifact in "${NATIVE_ARTIFACTS[@]}"; do
+            for artifact in "${UPLOAD_ASSETS[@]}"; do
                 log_info "  Uploading $(basename "$artifact")..."
                 curl -sSf -X POST \
                     -H "Authorization: token ${GITEE_TOKEN}" \
@@ -315,8 +341,8 @@ if ! $SKIP_GITHUB; then
 
         if gh release view "${VERSION}" "${GH_REPO_ARGS[@]}" &>/dev/null; then
             log_warn "GitHub Release ${VERSION} already exists, uploading artifacts..."
-            if [[ ${#NATIVE_ARTIFACTS[@]} -gt 0 ]]; then
-                gh release upload "${VERSION}" "${NATIVE_ARTIFACTS[@]}" \
+            if [[ ${#UPLOAD_ASSETS[@]} -gt 0 ]]; then
+                gh release upload "${VERSION}" "${UPLOAD_ASSETS[@]}" \
                     "${GH_REPO_ARGS[@]}" --clobber
             fi
         else
@@ -324,8 +350,8 @@ if ! $SKIP_GITHUB; then
                 --title "${VERSION}" \
                 --notes-file "$NOTES_FILE" \
                 "${GH_REPO_ARGS[@]}")
-            if [[ ${#NATIVE_ARTIFACTS[@]} -gt 0 ]]; then
-                RELEASE_ARGS+=("${NATIVE_ARTIFACTS[@]}")
+            if [[ ${#UPLOAD_ASSETS[@]} -gt 0 ]]; then
+                RELEASE_ARGS+=("${UPLOAD_ASSETS[@]}")
             fi
             gh "${RELEASE_ARGS[@]}"
         fi

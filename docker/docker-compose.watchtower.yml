@@ -1,0 +1,38 @@
+# =============================================================================
+# docker-compose.watchtower.yml — Watchtower in MONITOR-ONLY mode
+# =============================================================================
+# Alternative to Diun for users who already run Watchtower. With
+# WATCHTOWER_MONITOR_ONLY=true Watchtower ONLY checks + notifies; it does NOT
+# pull or recreate containers (notify + confirm). YOU apply updates manually:
+#
+#   cd docker && docker compose pull && docker compose up -d
+#
+# Usage (overlay on top of the base compose):
+#   docker compose -f docker-compose.yml -f docker-compose.watchtower.yml up -d
+#
+# Detected updates are logged to:  docker logs intellect-watchtower
+# Configure WATCHTOWER_NOTIFICATIONS for Slack/Telegram/email/etc.
+# (https://containrrr.dev/watchtower/notifications/).
+#
+# WARNING: do NOT also set WATCHTOWER_CLEANUP/label-enable auto-update flags —
+# that would turn this into an auto-updater, which is not the intended behavior.
+# =============================================================================
+
+services:
+  watchtower:
+    image: containrrr/watchtower:latest
+    container_name: intellect-watchtower
+    restart: unless-stopped
+    environment:
+      # Never update — only check and notify.
+      - WATCHTOWER_MONITOR_ONLY=true
+      # Poll every 6 hours (seconds).
+      - WATCHTOWER_POLL_INTERVAL=21600
+      - WATCHTOWER_NO_STARTUP_MESSAGE=true
+      # --- Optional notifications (shoutrrr) ---
+      # - WATCHTOWER_NOTIFICATIONS=shoutrrr
+      # - WATCHTOWER_NOTIFICATION_URL=telegram://token@telegram/?chats=@channel
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    # Watch only the Intellect containers.
+    command: intellect-agent intellect-webui
