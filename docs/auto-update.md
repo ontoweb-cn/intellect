@@ -148,8 +148,10 @@ Before `./scripts/release.sh`, keep intellect-agent version fields coherent:
 ./scripts/assert-agent-version.sh --expected v1.2.3   # also match exact release tag
 ```
 
-Bump agent versions with `intellect-agent/scripts/release.py`, then tag and run
-`release.sh --version vX.Y.Z`.
+Bump agent versions with `intellect-agent/scripts/release.py` so `__init__.py`,
+`pyproject.toml`, and `acp_registry/agent.json` stay aligned. Orchestrator
+releases use `release.sh --version vX.Y.Z`; that tag may differ from the agent
+semver (release.sh only requires agent internal coherence, not tag equality).
 
 **Optional compose mount** for git-based agent self-update (not required for
 self-contained webui images): see commented lines in `docker/docker-compose.yml`

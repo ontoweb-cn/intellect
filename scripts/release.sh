@@ -132,9 +132,21 @@ fi
 if [[ -d "${AGENT_REPO}" ]]; then
     log_step "Checking intellect-agent version coherence..."
     if $DRY_RUN; then
-        log_info "[dry-run] Would run: ./scripts/assert-agent-version.sh --expected ${VERSION}"
+        log_info "[dry-run] Would run: ./scripts/assert-agent-version.sh"
     else
-        bash "${SCRIPT_DIR}/assert-agent-version.sh" --expected "${VERSION}"
+        bash "${SCRIPT_DIR}/assert-agent-version.sh"
+        if [[ "$VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            agent_ver="$(python3 - "${AGENT_REPO}/intellect_cli/__init__.py" <<'PY'
+import re, sys
+text = open(sys.argv[1], encoding="utf-8").read()
+m = re.search(r'__version__\s*=\s*"([^"]+)"', text)
+print(m.group(1) if m else "")
+PY
+)"
+            if [[ -n "$agent_ver" && "${VERSION#v}" != "$agent_ver" ]]; then
+                log_warn "Release tag ${VERSION} differs from intellect-agent (${agent_ver}); orchestrator and agent tags are independent."
+            fi
+        fi
     fi
 fi
 
