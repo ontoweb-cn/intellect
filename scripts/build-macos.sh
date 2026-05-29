@@ -84,7 +84,8 @@ for bin_name in intellect intellect-agent intellect-acp; do
             cp "$found" "${DIST_DIR}/bin/${bin_name}"
             log_info "  [OK] ${bin_name} ($(du -h "${DIST_DIR}/bin/${bin_name}" | cut -f1))"
         else
-            log_warn "  [MISSING] ${bin_name} — agent build may have failed"
+            log_error "  [MISSING] ${bin_name} — agent build failed; aborting before packaging a broken artifact"
+            exit 1
         fi
     fi
 done
@@ -117,6 +118,8 @@ fi
 # ── Extract static files ──────────────────────────────────────────────
 log_step "Copying webui static files..."
 cp -r "${WEBUI_REPO}/static/"* "${DIST_DIR}/webui/"
+# Drop patch-reject leftovers (*.rej/*.orig) so they never reach a release.
+find "${DIST_DIR}/webui" -type f \( -name '*.rej' -o -name '*.orig' \) -delete
 log_info "  [OK] webui/ ($(find "${DIST_DIR}/webui" -type f | wc -l | tr -d ' ') files)"
 
 # ── Copy assets ───────────────────────────────────────────────────────
@@ -125,13 +128,32 @@ cp "${INTELLECT_ROOT}/assets/ctl.sh" "${DIST_DIR}/"
 cp "${INTELLECT_ROOT}/assets/env.sh" "${DIST_DIR}/"
 chmod +x "${DIST_DIR}/ctl.sh" "${DIST_DIR}/env.sh"
 
+# Ship the configuration template the README/env.sh expect (`cp .env.example .env`).
+if [[ -f "${AGENT_REPO}/.env.example" ]]; then
+    cp "${AGENT_REPO}/.env.example" "${DIST_DIR}/.env.example"
+elif [[ -f "${INTELLECT_ROOT}/assets/.env.example" ]]; then
+    cp "${INTELLECT_ROOT}/assets/.env.example" "${DIST_DIR}/.env.example"
+else
+    log_error "No .env.example found (looked in agent repo and assets/); aborting"
+    exit 1
+fi
+
 # Generate README
 sed -e "s/{{VERSION}}/${VERSION}/g" \
     -e "s/{{PLATFORM}}/macOS/g" \
     -e "s/{{ARCH}}/${TARGET_ARCH}/g" \
+    -e "s/{{REQUIREMENTS}}/macOS 12+ (Apple Silicon or Intel). No Python installation required (binaries are self-contained)./g" \
     "${INTELLECT_ROOT}/assets/README.dist.md" > "${DIST_DIR}/README.md"
 
-log_info "  [OK] ctl.sh, env.sh, README.md"
+log_info "  [OK] ctl.sh, env.sh, .env.example, README.md"
+
+# ── Final gate: never package a distribution missing executables ──────
+for b in intellect intellect-agent intellect-acp intellect-webui; do
+    if [[ ! -x "${DIST_DIR}/bin/${b}" ]]; then
+        log_error "Refusing to package: bin/${b} missing or not executable"
+        exit 1
+    fi
+done
 
 # ── Package ────────────────────────────────────────────────────────────
 log_step "Packaging..."

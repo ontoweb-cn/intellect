@@ -54,6 +54,12 @@ RUN curl -LsSf https://astral.sh/uv/install.sh | env UV_INSTALL_DIR=/usr/local/b
 
 COPY --chown=root:root . /apptoo
 
+# The server resolves static assets at <repo_root>/$INTELLECT_WEBUI_STATIC_DIR
+# (see api/config.py). The frontend ships under static/, so materialize a
+# webui/ copy to match the configured path; otherwise index.html and all
+# JS/CSS/icons resolve to a non-existent /app/webui and 404.
+RUN cp -r /apptoo/static /apptoo/webui
+
 # Frontend files at webui/ path
 ENV INTELLECT_WEBUI_STATIC_DIR=webui
 

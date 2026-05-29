@@ -26,12 +26,15 @@ A unified AI agent platform combining the **Intellect Agent** runtime with the *
 
 ### 1. macOS Native
 
-Download and extract the tarball for your architecture:
-
 | Architecture | Package |
 |-------------|---------|
 | Apple Silicon (M1/M2/M3) | `intellect-dist-darwin-arm64-{version}.tar.gz` |
 | Intel Mac | `intellect-dist-darwin-amd64-{version}.tar.gz` |
+
+> macOS tarballs are not cross-compilable and may not be published as
+> prebuilt artifacts. If no download is available for your release, build one
+> locally on a Mac of the matching architecture: `make macos`
+> (output lands in `dist/`).
 
 ```bash
 tar -xzf intellect-dist-darwin-arm64-{version}.tar.gz
@@ -61,13 +64,19 @@ source ./env.sh
 ### 3. Docker
 
 ```bash
-# Pull images
+# Pull images (published builds)
 docker pull ontoweb/intellect-agent:latest
 docker pull ontoweb/intellect-webui:latest
 
-# Start with docker-compose
+# Start with docker-compose (run from the docker/ directory)
+cd docker
 INTELLECT_UID=$(id -u) INTELLECT_GID=$(id -g) docker compose up -d
 ```
+
+> If the images are not published for your registry/namespace yet, build them
+> locally first: `make docker-amd64` (or `make docker-arm64`). Use
+> `./scripts/build-docker.sh --arch amd64 --version <ver>` without `--push` to
+> build into the local Docker daemon only.
 
 ### 4. Kubernetes
 
@@ -101,6 +110,10 @@ source ./env.sh
 
 # Show version
 ./bin/intellect version
+
+# ACP (Agent Client Protocol) server — JSON-RPC over stdio,
+# normally launched by an ACP-compatible client/editor rather than by hand
+./bin/intellect-acp
 ```
 
 ## WebUI Management

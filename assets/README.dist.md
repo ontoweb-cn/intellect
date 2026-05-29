@@ -31,8 +31,27 @@ Open http://127.0.0.1:9119 in your browser.
 
 ```bash
 source ./env.sh
+
+# Interactive chat
 ./bin/intellect chat
+
+# Show version / run diagnostics
+./bin/intellect version
+./bin/intellect doctor
 ```
+
+### 5. Run the ACP server
+
+The ACP (Agent Client Protocol) server lets ACP-compatible editors/clients
+drive the agent over stdio. It is a standalone binary:
+
+```bash
+source ./env.sh
+./bin/intellect-acp
+```
+
+It speaks JSON-RPC over stdin/stdout, so it is normally launched by your ACP
+client rather than run interactively.
 
 ## Directory Layout
 
@@ -70,5 +89,4 @@ source ./env.sh
 
 ## Requirements
 
-- macOS 12+ (Apple Silicon or Intel)
-- No Python installation required (binaries are self-contained)
+- {{REQUIREMENTS}}

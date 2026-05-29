@@ -120,6 +120,7 @@ build_for_arch() {
                 --strip \
                 --noinclude-setuptools-metadata=yes \
                 --enable-plugin=anti-bloat \
+                --assume-yes-for-downloads \
                 --include-data-dir=/build/agent/skills=skills \
                 --include-data-dir=/build/agent/optional-skills=optional-skills \
                 --include-data-dir=/build/agent/locales=locales \
@@ -135,6 +136,7 @@ build_for_arch() {
                 --strip \
                 --noinclude-setuptools-metadata=yes \
                 --enable-plugin=anti-bloat \
+                --assume-yes-for-downloads \
                 --include-data-dir=/build/agent/skills=skills \
                 --include-data-dir=/build/agent/optional-skills=optional-skills \
                 --include-data-dir=/build/agent/locales=locales \
@@ -150,6 +152,7 @@ build_for_arch() {
                 --strip \
                 --noinclude-setuptools-metadata=yes \
                 --enable-plugin=anti-bloat \
+                --assume-yes-for-downloads \
                 -m acp_adapter.entry
         "
 
@@ -160,7 +163,8 @@ build_for_arch() {
             mv "${dist_dir}/bin/${bin_name}.bin" "${dist_dir}/bin/${bin_name}"
             log_info "  [OK] ${bin_name}"
         else
-            log_warn "  [MISSING] ${bin_name}"
+            log_error "  [MISSING] ${bin_name} — Nuitka build failed; aborting before packaging a broken artifact"
+            exit 1
         fi
     done
 
@@ -197,12 +201,15 @@ build_for_arch() {
         mv "${dist_dir}/bin/intellect-webui.bin" "${dist_dir}/bin/intellect-webui"
         log_info "  [OK] intellect-webui"
     else
-        log_warn "  [MISSING] intellect-webui"
+        log_error "  [MISSING] intellect-webui — Nuitka build failed; aborting before packaging a broken artifact"
+        exit 1
     fi
 
     # Extract static files
     log_info "Copying webui static files..."
     cp -r "${WEBUI_REPO}/static/"* "${dist_dir}/webui/"
+    # Drop patch-reject leftovers (*.rej/*.orig) so they never reach a release.
+    find "${dist_dir}/webui" -type f \( -name '*.rej' -o -name '*.orig' \) -delete
     log_info "  [OK] webui/ ($(find "${dist_dir}/webui" -type f | wc -l | tr -d ' ') files)"
 
     # Copy assets
@@ -210,10 +217,29 @@ build_for_arch() {
     cp "${INTELLECT_ROOT}/assets/env.sh" "${dist_dir}/"
     chmod +x "${dist_dir}/ctl.sh" "${dist_dir}/env.sh"
 
+    # Ship the configuration template the README/env.sh expect (`cp .env.example .env`).
+    if [[ -f "${AGENT_REPO}/.env.example" ]]; then
+        cp "${AGENT_REPO}/.env.example" "${dist_dir}/.env.example"
+    elif [[ -f "${INTELLECT_ROOT}/assets/.env.example" ]]; then
+        cp "${INTELLECT_ROOT}/assets/.env.example" "${dist_dir}/.env.example"
+    else
+        log_error "No .env.example found (looked in agent repo and assets/); aborting"
+        exit 1
+    fi
+
     sed -e "s/{{VERSION}}/${VERSION}/g" \
         -e "s/{{PLATFORM}}/Linux/g" \
         -e "s/{{ARCH}}/${docker_arch}/g" \
+        -e "s/{{REQUIREMENTS}}/Linux (glibc 2.28+). No Python installation required (binaries are self-contained)./g" \
         "${INTELLECT_ROOT}/assets/README.dist.md" > "${dist_dir}/README.md"
+
+    # ── Final gate: never package a distribution missing executables ──────
+    for b in intellect intellect-agent intellect-acp intellect-webui; do
+        if [[ ! -x "${dist_dir}/bin/${b}" ]]; then
+            log_error "Refusing to package: bin/${b} missing or not executable"
+            exit 1
+        fi
+    done
 
     # Package
     cd "${DIST_DIR}"
