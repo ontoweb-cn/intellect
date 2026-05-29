@@ -79,12 +79,47 @@ require_cmd() {
     done
 }
 
-# Create dist directory for a given platform/arch
+# Create a clean dist directory for a given platform/arch (wipes any prior contents).
 prepare_dist() {
     local target="$1"  # e.g. darwin-arm64
     local dir="${DIST_DIR}/${target}"
+    rm -rf "$dir"
     mkdir -p "${dir}/bin" "${dir}/webui"
     echo "$dir"
+}
+
+# Refuse to tar a dist tree that contains user runtime state (~/.intellect layout).
+# Build scripts never copy these paths; this catches manual pollution or symlink leaks.
+assert_dist_safe_for_release() {
+    local dir="$1"
+    local hits
+    hits=$(find "$dir" \
+        \( -name '.intellect' \
+           -o -name 'auth.json' \
+           -o -name 'config.yaml' \
+           -o -name '.env' \
+           -o -path '*/sessions/*' \
+           -o -path '*/memories/*' \
+           -o -path '*/hooks/*' \) \
+        2>/dev/null | head -20 || true)
+    if [[ -n "$hits" ]]; then
+        log_error "Refusing to package ${dir}: found user runtime state (must not ship in releases):"
+        while IFS= read -r line; do
+            [[ -n "$line" ]] && log_error "  ${line}"
+        done <<< "$hits"
+        exit 1
+    fi
+}
+
+# Collect native release tarballs for a given version (excludes helm/k8s leftovers).
+collect_native_tarballs() {
+    local version="$1"
+    local tarball
+    shopt -s nullglob
+    for tarball in "${DIST_DIR}"/intellect-dist-*-"${version}".tar.gz; do
+        echo "$tarball"
+    done
+    shopt -u nullglob
 }
 
 # Banner

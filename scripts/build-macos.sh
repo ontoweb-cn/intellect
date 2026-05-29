@@ -158,6 +158,7 @@ done
 
 # ── Package ────────────────────────────────────────────────────────────
 log_step "Packaging..."
+assert_dist_safe_for_release "$DIST_DIR"
 cd "${DIST_DIR}/.."
 PKG_NAME="intellect-dist-${TARGET}-${VERSION}"
 tar -czf "${PKG_NAME}.tar.gz" "$(basename "$DIST_DIR")"

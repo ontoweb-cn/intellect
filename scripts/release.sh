@@ -189,12 +189,11 @@ if ! $SKIP_NATIVE && ! $SKIP_LINUX; then
         bash "${SCRIPT_DIR}/build-linux.sh" --arch "${NATIVE_ARCHS}" --version "${VERSION}"
     fi
 
-    for tarball in "${DIST_DIR}"/*.tar.gz; do
-        if [[ -f "$tarball" ]]; then
-            NATIVE_ARTIFACTS+=("$tarball")
-            log_info "  [artifact] $(basename "$tarball")"
-        fi
-    done
+    while IFS= read -r tarball; do
+        [[ -z "$tarball" ]] && continue
+        NATIVE_ARTIFACTS+=("$tarball")
+        log_info "  [artifact] $(basename "$tarball")"
+    done < <(collect_native_tarballs "${VERSION}")
 else
     log_info "Skipping native Linux binaries"
 fi
@@ -213,12 +212,13 @@ if ! $SKIP_NATIVE && ! $SKIP_MACOS; then
         bash "${SCRIPT_DIR}/build-macos.sh" --arch "${macos_arch}" --version "${VERSION}"
     fi
 
-    for tarball in "${DIST_DIR}"/*.tar.gz; do
-        if [[ -f "$tarball" ]] && [[ ! " ${NATIVE_ARTIFACTS[*]} " =~ " ${tarball} " ]]; then
+    while IFS= read -r tarball; do
+        [[ -z "$tarball" ]] && continue
+        if [[ ! " ${NATIVE_ARTIFACTS[*]:-} " =~ " ${tarball} " ]]; then
             NATIVE_ARTIFACTS+=("$tarball")
             log_info "  [artifact] $(basename "$tarball")"
         fi
-    done
+    done < <(collect_native_tarballs "${VERSION}")
 elif ! $SKIP_NATIVE && $SKIP_MACOS; then
     log_info "Skipping native macOS binaries (--skip-macos)"
 fi

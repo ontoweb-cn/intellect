@@ -243,6 +243,7 @@ build_for_arch() {
     done
 
     # Package
+    assert_dist_safe_for_release "$dist_dir"
     cd "${DIST_DIR}"
     PKG_NAME="intellect-dist-${target}-${VERSION}"
     tar -czf "${PKG_NAME}.tar.gz" "$(basename "$dist_dir")"
