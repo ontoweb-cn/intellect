@@ -42,6 +42,7 @@ RUN touch /opt/intellect-agent-src/README.md \
     && uv pip install --python /app/venv/bin/python --no-cache -U pip setuptools \
     && uv pip install --python /app/venv/bin/python --no-cache "/opt/intellect-agent-src[all]" \
     && uv pip install --python /app/venv/bin/python --no-cache "hindsight-client>=0.4.22" \
+    && /app/venv/bin/python -c "import agent; import agent.skill_utils; import intellect_cli" \
     && touch /app/venv/.deps_installed
 
 # ---------- Stage: runtime image ----------
@@ -93,14 +94,10 @@ RUN curl -LsSf https://astral.sh/uv/install.sh | env UV_INSTALL_DIR=/usr/local/b
 
 COPY --chown=root:root . /apptoo
 
-# The server resolves static assets at <repo_root>/$INTELLECT_WEBUI_STATIC_DIR
-# (see api/config.py). The frontend ships under static/, so materialize a
-# webui/ copy to match the configured path; otherwise index.html and all
-# JS/CSS/icons resolve to a non-existent /app/webui and 404.
-RUN cp -r /apptoo/static /apptoo/webui
-
-# Frontend files at webui/ path
-ENV INTELLECT_WEBUI_STATIC_DIR=webui
+# Frontend files live under static/ and index.html references them with relative
+# "static/..." URLs (→ browser requests /static/...). The server only serves paths
+# under /{INTELLECT_WEBUI_STATIC_DIR}/, so this MUST be "static", not "webui".
+ENV INTELLECT_WEBUI_STATIC_DIR=static
 
 ARG INTELLECT_VERSION=unknown
 RUN echo "__version__ = '${INTELLECT_VERSION}'" > /apptoo/api/_version.py

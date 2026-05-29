@@ -50,7 +50,8 @@ services:
     environment:
       - INTELLECT_WEBUI_HOST=0.0.0.0
       - INTELLECT_WEBUI_PORT=9119
-      - INTELLECT_WEBUI_STATIC_DIR=webui
+      # Must match index.html relative URLs (/static/...). Do not use "webui".
+      - INTELLECT_WEBUI_STATIC_DIR=static
       # Required by docker_init.bash (line 305): must be set explicitly — no default.
       # Maps to ~/.intellect/webui on the host via the .intellect volume mount below.
       - INTELLECT_WEBUI_STATE_DIR=/home/intellectwebui/.intellect/webui

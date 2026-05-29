@@ -109,6 +109,7 @@ build_image() {
     # at image-build time, so it needs the agent source as a named build context.
     if [[ "$image" == "intellect-webui" ]]; then
         build_args+=(--build-context "intellect-agent=${AGENT_REPO}")
+        build_args+=(--build-arg "INTELLECT_VERSION=${VERSION}")
     fi
 
     docker buildx build "${build_args[@]}" "$context"
