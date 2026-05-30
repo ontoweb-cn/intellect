@@ -80,8 +80,8 @@ require_cmd() {
 }
 
 # Ensure a multi-arch capable buildx builder exists.
-# Uses a positional builder name (not --name) for compatibility with older
-# docker/buildx combinations that reject --name on create.
+# Builder name must use --name; the optional positional arg is a Docker
+# context/endpoint (not the builder name).
 ensure_buildx_builder() {
     local builder="${1:-intellect-builder}"
 
@@ -99,15 +99,25 @@ ensure_buildx_builder() {
     fi
 
     log_step "Creating buildx builder '${builder}'..."
-    if ! docker buildx create \
+    if docker buildx create \
+        --name "$builder" \
         --driver docker-container \
         --use \
-        --bootstrap \
-        "$builder"; then
-        log_error "Failed to create buildx builder '${builder}'."
-        log_error "Try: docker buildx create --driver docker-container --use ${builder}"
-        exit 1
+        --bootstrap; then
+        return 0
     fi
+
+    log_warn "Named buildx create failed; retrying with auto-generated builder name..."
+    if docker buildx create \
+        --driver docker-container \
+        --use \
+        --bootstrap; then
+        return 0
+    fi
+
+    log_error "Failed to create buildx builder '${builder}'."
+    log_error "Try: docker buildx create --name ${builder} --driver docker-container --use --bootstrap"
+    exit 1
 }
 
 # Create a clean dist directory for a given platform/arch (wipes any prior contents).
