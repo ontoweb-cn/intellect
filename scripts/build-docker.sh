@@ -52,11 +52,7 @@ done
 PLATFORMS="${PLATFORMS%,}"
 
 if [[ ${#TARGET_ARCHS[@]} -gt 1 ]]; then
-    if ! docker buildx inspect intellect-builder &>/dev/null; then
-        docker buildx create --name intellect-builder --use --bootstrap
-    else
-        docker buildx use intellect-builder
-    fi
+    ensure_buildx_builder intellect-builder
 fi
 
 # Build each image

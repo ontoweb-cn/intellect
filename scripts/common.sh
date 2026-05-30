@@ -79,6 +79,37 @@ require_cmd() {
     done
 }
 
+# Ensure a multi-arch capable buildx builder exists.
+# Uses a positional builder name (not --name) for compatibility with older
+# docker/buildx combinations that reject --name on create.
+ensure_buildx_builder() {
+    local builder="${1:-intellect-builder}"
+
+    if ! docker buildx version >/dev/null 2>&1; then
+        log_error "Docker Buildx is required for multi-arch builds."
+        log_error "Verify with: docker buildx version"
+        log_error "Install: https://docs.docker.com/build/buildx/install/"
+        exit 1
+    fi
+
+    if docker buildx inspect "$builder" >/dev/null 2>&1; then
+        docker buildx use "$builder"
+        docker buildx inspect "$builder" --bootstrap >/dev/null 2>&1 || true
+        return 0
+    fi
+
+    log_step "Creating buildx builder '${builder}'..."
+    if ! docker buildx create \
+        --driver docker-container \
+        --use \
+        --bootstrap \
+        "$builder"; then
+        log_error "Failed to create buildx builder '${builder}'."
+        log_error "Try: docker buildx create --driver docker-container --use ${builder}"
+        exit 1
+    fi
+}
+
 # Create a clean dist directory for a given platform/arch (wipes any prior contents).
 prepare_dist() {
     local target="$1"  # e.g. darwin-arm64

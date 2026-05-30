@@ -55,12 +55,7 @@ for arch in "${TARGET_ARCHS[@]}"; do
 done
 
 if $NEED_QEMU; then
-    if ! docker buildx inspect intellect-builder &>/dev/null; then
-        log_step "Creating buildx builder (multi-arch)..."
-        docker buildx create --name intellect-builder --use --bootstrap
-    else
-        docker buildx use intellect-builder
-    fi
+    ensure_buildx_builder intellect-builder
 fi
 
 # ── Build or reuse builder image ──────────────────────────────────────
